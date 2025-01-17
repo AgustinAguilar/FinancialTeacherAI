@@ -42,9 +42,9 @@ namespace FinancialTeacherAI.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpPost("embbedContext")]
-        public IActionResult EmbbedContext()
+        public async Task<IActionResult> EmbbedContext()
         {
-            _embeddingService.GenerateContextEmbeddingAsync();
+            await _embeddingService.GenerateContextEmbeddingAsync();
 
             return Ok();
         }

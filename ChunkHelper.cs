@@ -1,37 +1,9 @@
 using System.Text.RegularExpressions;
-using iText.Kernel.Pdf;
+using FinancialTeacherAI.Services.DTO;
+using UglyToad.PdfPig;
 
 public static class ChunkHelper
 {
-    public static List<string> ChunkPdf(PdfDocument pdfDoc, int chunkSize)
-    {
-        var chunks = new List<string>();
-        var pagesCount = 1;
-        while (pagesCount <= pdfDoc.GetNumberOfPages())
-        {
-            var page = pdfDoc.GetPage(pagesCount);
-            var text = iText.Kernel.Pdf.Canvas.Parser.PdfTextExtractor.GetTextFromPage(page);
-            var sentences = text.Split(new[] { ". " }, StringSplitOptions.RemoveEmptyEntries);
-            var currentChunk = new List<string>();
-            foreach (var sentence in sentences)
-            {
-                currentChunk.Add(sentence);
-                if (currentChunk.Count >= chunkSize)
-                {
-                    chunks.Add(string.Join(". ", currentChunk));
-                    currentChunk.Clear();
-                }
-            }
-
-            if (currentChunk.Count > 0)
-                chunks.Add(string.Join(". ", currentChunk));
-
-            pagesCount++;
-        }
-
-        return chunks;
-    }
-
     public static List<string> ChunkTextByHeader(string text)
     {
         // Regex pattern to identify headers (e.g., #, ##)
@@ -52,5 +24,66 @@ public static class ChunkHelper
         }
 
         return chunks;
+    }
+
+    public static string ExtractTextFromPdf(string path)
+    {
+        using (var pdf = PdfDocument.Open(path))
+        {
+            string extractedText = "";
+            foreach (var page in pdf.GetPages())
+            {
+                extractedText += page.Text + "\n";
+            }
+            return extractedText;
+        }
+    }
+
+    public static List<string> SplitTextIntoChunks(string text, int chunkSizeWords)
+    {
+        var chunks = new List<string>();
+        var words = text.Split(new[] { ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+
+        for (int i = 0; i < words.Length; i += chunkSizeWords)
+        {
+            var chunk = string.Join(" ", words, i, Math.Min(chunkSizeWords, words.Length - i));
+            chunks.Add(chunk);
+        }
+
+        return chunks;
+    }
+
+    public static Input PrepareInputPayloadToAll(List<string> chunks)
+    {
+        // Prepara el payload con el formato requerido por Hugging Face
+        var input = new Input();
+        input.SourceSentence = "Financials Book";
+        input.Sentences = new List<string>();
+        input.Sentences = chunks;
+        //input.Sentences.Add(chunk);
+        return input;
+    }
+
+    public static Input PrepareInputPayload(string chunk)
+    {
+        var input = new Input();
+        input.SourceSentence = "Financials Book";
+        input.Sentences = new List<string>();
+        input.Sentences.Add(chunk);
+        return input;
+    }
+
+    public static string CleanText(string text)
+    {
+        // Elimina caracteres de control y no imprimibles
+        text = Regex.Replace(text, @"[\x00-\x1F\x7F]", ""); // Caracteres de control ASCII
+
+        // Reemplaza múltiples espacios consecutivos por un único espacio
+        text = Regex.Replace(text, @"\s+", " ");
+
+        // Elimina caracteres especiales, dejando solo letras, números y espacios
+        text = Regex.Replace(text, @"[^a-zA-Z0-9\s]", "").Trim();
+
+        return text;
     }
 }

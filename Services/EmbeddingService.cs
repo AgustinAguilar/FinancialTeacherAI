@@ -1,17 +1,22 @@
+using FinancialTeacherAI.Services.Interfaces;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Embeddings;
+using UglyToad.PdfPig.Graphics;
 
 public class EmbeddingService : IEmbeddingService
 {
     private readonly Kernel _kernel;
     private readonly IPineconeService _pineconeService;
+    private readonly IHuggingFaceService _huggingFaceService;
 
     public EmbeddingService(
         [FromKeyedServices("FinancialAIKernel")] Kernel kernel,
-        IPineconeService pineconeService)
+        IPineconeService pineconeService,
+        IHuggingFaceService huggingFaceService)
     {
         _kernel = kernel;
         _pineconeService = pineconeService;
+        _huggingFaceService = huggingFaceService;
     }
 
     /// <summary>
@@ -20,23 +25,28 @@ public class EmbeddingService : IEmbeddingService
     /// <returns></returns>
     public async Task GenerateContextEmbeddingAsync()
     {
-#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-        var textEmbedding = _kernel.GetRequiredService<ITextEmbeddingGenerationService>();
-#pragma warning restore SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
-        string contextPath = Path.Combine(Directory.GetCurrentDirectory(), @"data\context.txt");
-        var chunks = ChunkHelper.ChunkTextByHeader(File.ReadAllText(contextPath));
+        string contextPath = Path.Combine(Directory.GetCurrentDirectory(), @"data\PrinciplesofFinance-WEB.pdf");
+        string text = ChunkHelper.ExtractTextFromPdf(contextPath);
+        text = ChunkHelper.CleanText(text);
         var chunkEmbeddings = new List<ChunkEmbedding>();
-        foreach (string chunk in chunks)
+        var chunks = ChunkHelper.SplitTextIntoChunks(text, 300);
+
+        var inputPayload = ChunkHelper.PrepareInputPayloadToAll(chunks);
+        var embedding = await _huggingFaceService.GenerateEmbeddingsForChunk(inputPayload);
+        float[] embeddingArray = embedding
+           .Trim('[', ']')
+           .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries) 
+           .Select(float.Parse) 
+           .ToArray();
+
+        for (int i = 0; i < chunks.Count; i++)
         {
-            var chunkEmbedding = await textEmbedding.GenerateEmbeddingAsync(chunk);
             chunkEmbeddings.Add(new ChunkEmbedding
             {
-                Embedding = chunkEmbedding.ToArray(),
-                Text = chunk
+                Text = chunks[i],
+                Embedding = new float[] { embeddingArray[i] }
             });
         }
-
         await _pineconeService.StoreEmbeddingsAsync(chunkEmbeddings);
     }
 }

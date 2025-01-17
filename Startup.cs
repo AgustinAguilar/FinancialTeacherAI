@@ -1,3 +1,5 @@
+using FinancialTeacherAI.Services;
+using FinancialTeacherAI.Services.Interfaces;
 using Microsoft.OpenApi.Models;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -34,10 +36,6 @@ namespace FinancialTeacherAI
 
 #pragma warning disable SKEXP0010
             
-            if (string.IsNullOrEmpty(endpoint) || string.IsNullOrEmpty(apiKey))
-            {
-                throw new ArgumentNullException("Azure OpenAI endpoint or API key cannot be null or empty.");
-            }
 
             services.AddAzureOpenAITextEmbeddingGeneration(
                 deploymentName: "text-embedding-ada-002",
@@ -56,6 +54,7 @@ namespace FinancialTeacherAI
             services.AddScoped<IPineconeService, PineconeService>();
             services.AddScoped<IEmbeddingService, EmbeddingService>();
             services.AddScoped<IFinancialAIService, FinancialAIService>();
+            services.AddScoped<IHuggingFaceService, HuggingFaceService>();
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
